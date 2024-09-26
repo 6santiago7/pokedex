@@ -61,88 +61,80 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
-export default {
-  data() {
+const pokemons = ref([]);
+const search = ref('');
+const loading = ref(true);
+const singlePokemon = ref(null);
+const showSinglePokemon = ref(false);
+
+const filteredPokemons = computed(() => {
+  const query = search.value.toLowerCase();
+  return pokemons.value.filter(pokemon => {
+    return pokemon.name.toLowerCase().includes(query) || pokemon.id.toString().includes(query);
+  });
+});
+
+const getPokemonImageUrl = (id) => {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+};
+
+const fetchPokemonDetails = async (pokemon) => {
+  try {
+    const response = await axios.get(pokemon.url);
     return {
-      pokemons: [],
-      search: '',
-      loading: true,
-      singlePokemon: null,
-      showSinglePokemon: false
+      ...pokemon,
+      ...response.data,
+      abilities: response.data.abilities.map(ability => ({ name: ability.ability.name })),
+      stats: response.data.stats.map(stat => ({ stat: stat.stat, base_stat: stat.base_stat }))
     };
-  },
-  computed: {
-    filteredPokemons() {
-      const query = this.search.toLowerCase();
-      return this.pokemons.filter(pokemon => {
-        return pokemon.name.toLowerCase().includes(query) || pokemon.id.toString().includes(query);
-      });
-    }
-  },
-  methods: {
-    getPokemonImageUrl(id) {
-      return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
-    },
-    async fetchPokemonDetails(pokemon) {
-      try {
-        const response = await axios.get(pokemon.url);
-        return {
-          ...pokemon,
-          ...response.data,
-          abilities: response.data.abilities.map(ability => ({
-            name: ability.ability.name
-          })),
-          stats: response.data.stats.map(stat => ({
-            stat: stat.stat,
-            base_stat: stat.base_stat
-          }))
-        };
-      } catch (error) {
-        console.error('Error fetching Pokémon details:', error);
-        return pokemon;
-      }
-    },
-    getProgressWidth(stat) {
-      const maxStat = 200;
-      return (stat / maxStat) * 100;
-    },
-    async addRandomPokemon() {
-      const randomId = Math.floor(Math.random() * 250) + 1;
-      try {
-        const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${randomId}`);
-        const randomPokemon = await this.fetchPokemonDetails({
-          name: response.data.name,
-          url: `https://pokeapi.co/api/v2/pokemon/${randomId}`,
-          id: randomId
-        });
-        this.singlePokemon = randomPokemon;
-        this.showSinglePokemon = true;
-      } catch (error) {
-        console.error('Error fetching random Pokémon:', error);
-      }
-    }
-  },
-  async created() {
-    try {
-      const response = await axios.get('https://pokeapi.co/api/v2/pokemon?limit=250');
-      const detailedPokemons = await Promise.all(
-        response.data.results.map(async (pokemon, index) => {
-          return this.fetchPokemonDetails({ ...pokemon, id: index + 1 });
-        })
-      );
-      this.pokemons = detailedPokemons;
-      this.loading = false;
-    } catch (error) {
-      console.error('Error fetching Pokémon:', error);
-    }
+  } catch (error) {
+    console.error('Error fetching Pokémon details:', error);
+    return pokemon;
   }
 };
+
+const getProgressWidth = (stat) => {
+  const maxStat = 200; // Modificar si es necesario
+  return (stat / maxStat) * 100;
+};
+
+const addRandomPokemon = async () => {
+  const randomId = Math.floor(Math.random() * 250) + 1;
+  try {
+    const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${randomId}`);
+    const randomPokemon = await fetchPokemonDetails({
+      name: response.data.name,
+      url: `https://pokeapi.co/api/v2/pokemon/${randomId}`,
+      id: randomId
+    });
+    singlePokemon.value = randomPokemon;
+    showSinglePokemon.value = true;
+  } catch (error) {
+    console.error('Error fetching random Pokémon:', error);
+  }
+};
+
+onMounted(async () => {
+  try {
+    const response = await axios.get('https://pokeapi.co/api/v2/pokemon?limit=250');
+    const detailedPokemons = await Promise.all(
+      response.data.results.map(async (pokemon, index) => {
+        return fetchPokemonDetails({ ...pokemon, id: index + 1 });
+      })
+    );
+    pokemons.value = detailedPokemons;
+    loading.value = false;
+  } catch (error) {
+    console.error('Error fetching Pokémon:', error);
+  }
+});
 </script>
 
-<style>
+<style scoped>
 body {
   margin: 0;
   padding: 0;
@@ -250,60 +242,31 @@ body {
   font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
 }
 
-.pokemon-details {
-  color: black;
-  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-}
-
 .details-heading {
-  color: #ffcb05;
-  font-size: 1.2em;
-  margin-bottom: 5px;
-  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-size: 1.1em;
+  color: #2c3e50;
+  margin: 10px 0;
 }
 
 .details-list {
-  list-style-type: none;
+  list-style: none;
   padding: 0;
 }
 
 .details-item {
-  margin-bottom: 5px;
-}
-
-.stat-value {
-  color: black;
-  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  margin: 5px 0;
+  color: #555;
 }
 
 .progress-bar-container {
-  width: 100%;
-  background-color: #e0e0e0;
+  background: #e0e0e0;
   border-radius: 5px;
-  margin-top: 5px;
+  overflow: hidden;
   height: 10px;
 }
 
 .progress-bar {
+  background: #ffcb05;
   height: 100%;
-  background-color: #ffcb05;
-  border-radius: 5px;
-}
-
-.no-results {
-  text-align: center;
-  margin-top: 50px;
-}
-
-.no-results img {
-  width: 300px;
-  height: auto;
-  margin-bottom: 20px;
-}
-
-.no-results p {
-  font-size: 1.5em;
-  color: #ff0000;
-  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
 }
 </style>
